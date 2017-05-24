@@ -279,6 +279,11 @@ void UART_GPIOC_init(uint32_t baudRate)
 
 void Engine_Off_Timer_init()
 {
+	NVIC_InitTypeDef NVIC_InitStructure;
+
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+
+
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
 	TIM_TimeBaseInitTypeDef timer;
 
@@ -287,6 +292,23 @@ void Engine_Off_Timer_init()
 	timer.TIM_ClockDivision = TIM_CKD_DIV1;
 	timer.TIM_CounterMode = TIM_CounterMode_Up;
 	TIM_TimeBaseInit(TIM3, &timer);
+
+				NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
+				// priorytet g³ówny
+				NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
+				// subpriorytet
+				NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
+				// uruchom dany kana³
+				NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+				// zapisz wype³nion¹ strukturê do rejestrów
+				NVIC_Init(&NVIC_InitStructure);
+
+				TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
+				// zezwolenie na przerwania od przepe³nienia dla timera 3
+				TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
+
+				TIM_Cmd(TIM3, ENABLE);
+
 }
 
 

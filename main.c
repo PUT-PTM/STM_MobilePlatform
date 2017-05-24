@@ -13,19 +13,48 @@ char cmd[5];
 int index=0;
 
 char X=0;
-char os_Y=0;
+char Y=0;
 char direction=0;//0-przod, 1-tyl, 2-lewo, 3-prawo
 
 
 //tylko do podgladu
-uint16_t value1=0;
-uint16_t value2=0;
-uint16_t value3=0;
-uint16_t value4=0;
-uint16_t value5=0;
-uint16_t value6=0;
-uint16_t value7=0;
-uint16_t value8=0;
+uint16_t srodek1=0;
+uint16_t srodek2=0;
+uint16_t prawo3=0;
+uint16_t prawo2=0;
+uint16_t prawo1=0;
+uint16_t lewo1=0;
+uint16_t lewo2=0;
+uint16_t lewo3=0;
+
+int PWM_Prawy;
+int PWM_Lewy;
+
+
+int Kp=100;
+int Kd=650;
+int Ki=100;
+int docelowa=0;
+int Tp=5000;
+int aktualna=0;
+int ile_czujnikow=0;
+float aktualna_pozycja=0;
+float error=0;
+float zmiana=0;
+float calka=0;
+float ostatnia_wartosc=0;
+int strona=0;
+
+
+int16_t waga1=-60;
+int16_t waga2=-30;
+int16_t waga3=-20;
+int16_t waga4=0;
+int16_t waga5=0;
+int16_t waga6=20;
+int16_t waga7=30;
+int16_t waga8=60;
+
 
 
 //sterowanie przez bluetooth
@@ -53,14 +82,14 @@ void USART3_IRQHandler(void)
 		{
 			if(cmd[1]=='-')
 			{
-				if(os_Y==0)
+				if(Y==0)
 					direction=1;
 
 				X=cmd[2]-48;
 				index=0;
 			}else
 			{
-				if(os_Y==0)
+				if(Y==0)
 					direction=0;
 
 				X=cmd[1]-48;
@@ -75,21 +104,21 @@ void USART3_IRQHandler(void)
 				if(X==0)
 					direction=2;
 
-				os_Y=cmd[2]-48;
+				Y=cmd[2]-48;
 				index=0;
 			}else
 			{
 				if(X==0)
 					direction=3;
 
-				os_Y=cmd[1]-48;
+				Y=cmd[1]-48;
 				index=0;
 			}
 
 		}break;
 		case 'o':
 		{
-			GPIO_ToggleBits(GPIOA,GPIO_Pin_4);
+			GPIO_ToggleBits(GPIOC,GPIO_Pin_4);
 
 			//sprawdzenie stanu na diodach
 			if(GPIO_ReadInputDataBit(GPIOC,GPIO_Pin_4))
@@ -148,11 +177,110 @@ void TIM3_IRQHandler(void)
 
 }
 
+
+void LineFollow()
+{
+	srodek1=valueFromADC[0];
+	srodek2=valueFromADC[1];
+	prawo3=valueFromADC[2];
+	prawo2=valueFromADC[3];
+	prawo1=valueFromADC[4];
+	lewo1=valueFromADC[5];
+	lewo2=valueFromADC[6];
+	lewo3=valueFromADC[7];
+
+
+		if(lewo3>1000)
+			{
+			aktualna=aktualna+waga1;
+			ile_czujnikow++;
+			strona=1;
+			}
+			if(lewo2>1000)
+			{
+			aktualna=aktualna+waga2;
+			ile_czujnikow++;
+			}
+			if(lewo1>1000)
+			{
+			aktualna=aktualna+waga3;
+			ile_czujnikow++;
+			}
+			if(srodek2>1000)
+			{
+			aktualna=aktualna+waga4;
+			ile_czujnikow++;
+			}
+			if(srodek1>1000)
+			{
+			aktualna=aktualna+waga5;
+			ile_czujnikow++;
+			}
+			if(prawo1>1000)
+			{
+			aktualna=aktualna+waga6;
+			ile_czujnikow++;
+			}
+			if(prawo2>1000)
+			{
+			aktualna=aktualna+waga7;
+			ile_czujnikow++;
+			}
+			if(prawo3>1000)
+			{
+			aktualna=aktualna+waga8;
+			ile_czujnikow++;
+			strona=2;
+			}
+
+//			if((aktualna==0)&&(srodek1<1000)||(srodek2<1000)){
+//				TIM4->CCR1 = 0; // Przekazujemy do silnika prawego now¹ prêdkoœæ
+//				TIM4->CCR2 = 0;
+//			}
+
+			aktualna_pozycja=(float)(aktualna/ile_czujnikow);
+			error=docelowa+aktualna_pozycja;
+			float zmiana_P=Kp*error;
+			float zmiana_D=Kd*(error-ostatnia_wartosc);
+			calka+=error;
+			float zmiana_I=Ki*calka;
+
+			zmiana=zmiana_P+zmiana_D+zmiana_I;
+			GPIO_ResetBits(GPIOC,GPIO_Pin_0|GPIO_Pin_2);
+			GPIO_SetBits(GPIOC,GPIO_Pin_1|GPIO_Pin_3);
+
+			ostatnia_wartosc=error;
+
+			if(zmiana==0)
+			{
+				TIM4->CCR1 = 7500;
+				TIM4->CCR2 = 7500;
+			}else {
+				TIM4->CCR1 = Tp - zmiana; // Przekazujemy do silnika prawego now¹ prêdkoœæ
+				TIM4->CCR2 = Tp + zmiana;
+			}
+
+
+
+			ile_czujnikow=0;
+			aktualna=0;
+			aktualna_pozycja=0;
+			error=0;
+			calka=0;
+			strona=0;
+
+
+
+}
+
 int main(void)
 {
 	SystemInit();
-	/* GPIOD Periph clock enable */
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+
+	UART_GPIOC_init(9600);
+	PWM_Engine_init();
+	Engine_Controll_Pins_init();
+	//Engine_Off_Timer_init();
 
 
 	DMA_initP2M();
@@ -162,16 +290,16 @@ int main(void)
 	//wlaczenie czujnikow IR
 	GPIO_SetBits(GPIOB,GPIO_Pin_2);
 
+	//wlaczeni silnikow
+	GPIO_SetBits(GPIOC,GPIO_Pin_4);
+
 	for(;;)
 	{
-		value1=valueFromADC[0];
-		value2=valueFromADC[1];
-		value3=valueFromADC[2];
-		value4=valueFromADC[3];
-		value5=valueFromADC[4];
-		value6=valueFromADC[5];
-		value7=valueFromADC[6];
-		value8=valueFromADC[7];
+
+		LineFollow();
+		PWM_Lewy=TIM4->CCR2;
+		PWM_Prawy=TIM4->CCR1;
+
 
 	}
 
@@ -203,8 +331,15 @@ int main(void)
  *
  * todo
  * czujnik odleglosci
- * sterowanie na podstawie czujnikow IR
  * todo PWM na inne piny
+ *
+ *
+ * todo
+ * calkiiii
+ * regulacja
+ * pamiec
+ * dokumentacja
  */
+
 
 
