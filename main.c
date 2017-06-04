@@ -9,66 +9,68 @@
 #include "funkcje.h"
 #include "stm32f4xx_usart.h"
 
-char cmd[5];
-int index=0;
 
-char X=0;
-char Y=0;
-char direction=0;//0-przod, 1-tyl, 2-lewo, 3-prawo
+char ActiveMode =0;//0-LineFollower, 1-Manual
+char cmd[5];//bluetooth/uart commands
+int index=0;//
 
+char X=0;//forward/backward value from bluetooth
+char Y=0;//left/right value from bluetooth
+char direction=0;//0-forward, 1-backward, 2-left, 3-right
 
-//tylko do podgladu
-uint16_t srodek1=0;
-uint16_t srodek2=0;
-uint16_t prawo3=0;
-uint16_t prawo2=0;
-uint16_t prawo1=0;
-uint16_t lewo1=0;
-uint16_t lewo2=0;
-uint16_t lewo3=0;
+//debug
+int PWM_Right;
+int PWM_Left;
 
-int PWM_Prawy;
-int PWM_Lewy;
+// more than 1000 means black line
+uint16_t sensorThreshold=1000;
+//sensors
+uint16_t right3=0;
+uint16_t right2=0;
+uint16_t right1=0;
+uint16_t middle1=0;
+uint16_t middle2=0;
+uint16_t left1=0;
 
+uint16_t left2=0;
+uint16_t left3=0;
 
+//values for PD alghoritm
 int Kp=100;
-int Kd=650;
-int Ki=100;
-int docelowa=0;
-int Tp=5000;
-int aktualna=0;
-int ile_czujnikow=0;
-float aktualna_pozycja=0;
-float error=0;
-float zmiana=0;
-float calka=0;
-float ostatnia_wartosc=0;
-int strona=0;
+int Kd=800;
+int Tp=7000;
+int currentPosition=0;
+int sensorsCounter=0;
+int error=0;
+int16_t PWM_change=0;
+int lastValue=0;
+//if all sensors don't see the line
+//0 - left, 1 - right
+int lastKnownPosition=0;
+
+//values of each sensor
+int16_t left3SensorValue=-70;
+int16_t left2SensorValue=-50;
+int16_t left1SensorValue=-30;
+int16_t middle2SensorValue=-10;
+int16_t middle1SensorValue=10;
+int16_t right1SensorValue=30;
+int16_t right2SensorValue=50;
+int16_t right3SensorValue=70;
 
 
-int16_t waga1=-60;
-int16_t waga2=-30;
-int16_t waga3=-20;
-int16_t waga4=0;
-int16_t waga5=0;
-int16_t waga6=20;
-int16_t waga7=30;
-int16_t waga8=60;
+//ultrawave sensor values
+char ultrawaveSensorEnabled=1;
+uint16_t inputCaptureValue=0;
+uint16_t inputCaptureValue2=0;
+uint16_t ultrawavesensorHightime;
+uint16_t distance=0;
 
-
-
-//sterowanie przez bluetooth
+//BluetoothControll
 void USART3_IRQHandler(void)
 {
-	// sprawdzenie flagi zwiazanej z odebraniem danych przez USART
 	if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)
 	{
-		/////////////////////////////////////
-		//TODO wsadzic kod do osobnej funkcji
-		/////////////////////////////////////
-
-		//reset timera wylaczajacego silniki
-		TIM3->CNT=0;
 
 		cmd[index]=USART_ReceiveData(USART3);
 		if(++index>4)
@@ -83,14 +85,14 @@ void USART3_IRQHandler(void)
 			if(cmd[1]=='-')
 			{
 				if(Y==0)
-					direction=1;
+					direction=0;
 
 				X=cmd[2]-48;
 				index=0;
 			}else
 			{
 				if(Y==0)
-					direction=0;
+					direction=1;
 
 				X=cmd[1]-48;
 				index=0;
@@ -118,10 +120,9 @@ void USART3_IRQHandler(void)
 		}break;
 		case 'o':
 		{
-			GPIO_ToggleBits(GPIOC,GPIO_Pin_4);
+			GPIO_ToggleBits(GPIOE,GPIO_Pin_6);
 
-			//sprawdzenie stanu na diodach
-			if(GPIO_ReadInputDataBit(GPIOC,GPIO_Pin_4))
+			if(GPIO_ReadInputDataBit(GPIOE,GPIO_Pin_6))
 			{
 				TIM4->CCR3=TIM4->ARR;
 			}else
@@ -132,6 +133,30 @@ void USART3_IRQHandler(void)
 
 
 		}break;
+		case 'L'://linefollower
+		{
+			ActiveMode=0;
+			index=0;
+			break;
+		}
+		case 'B'://bluetooth
+		{
+			ActiveMode=1;
+			index=0;
+			break;
+		}
+		case 'D'://distancesensor
+		{
+			if(ultrawaveSensorEnabled==0)
+			{
+				ultrawaveSensorEnabled=1;
+			}else
+			{
+				ultrawaveSensorEnabled=0;
+			}
+			index=0;
+			break;
+		}
 
 		default:
 		{
@@ -139,139 +164,185 @@ void USART3_IRQHandler(void)
 		}break;
 		}
 		}
-		////////////////////////////////////////
-		////////////////////////////////////////
+
 
 	}
 }
 
 
-void EXTI0_IRQHandler(void)
-{
-        if(EXTI_GetITStatus(EXTI_Line0) != RESET)
-        {
-         // miejsce na kod wywo³ywany w momencie wyst¹pienia przerwania
-
-         // wyzerowanie flagi wyzwolonego przerwania
-         EXTI_ClearITPendingBit(EXTI_Line0);
-   	   	}
-}
-
-//wylaczenie silnikow
 void TIM3_IRQHandler(void)
 {
 	if(TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)
 	{
-		if(TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)
+
+		if(ultrawaveSensorEnabled)
 		{
-			GPIO_ResetBits(GPIOC,GPIO_Pin_4);
-			if(GPIO_ReadInputDataBit(GPIOC,GPIO_Pin_4))
-				TIM4->CCR3=TIM4->ARR;
-			else
-				TIM4->CCR3=0;
+		if(GPIO_ReadInputDataBit(GPIOC,GPIO_Pin_7))
+			inputCaptureValue=TIM_GetCapture2(TIM3);
+		else
+			inputCaptureValue2=TIM_GetCapture2(TIM3);
 
-		TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
+		ultrawavesensorHightime=inputCaptureValue2-inputCaptureValue;
+		distance=(ultrawavesensorHightime*34)/1000/2;
+		}else
+		{
+			distance=0;
 		}
-
+		TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
 	}
 
 }
 
 
-void LineFollow()
+
+void FollowLine()
 {
-	srodek1=valueFromADC[0];
-	srodek2=valueFromADC[1];
-	prawo3=valueFromADC[2];
-	prawo2=valueFromADC[3];
-	prawo1=valueFromADC[4];
-	lewo1=valueFromADC[5];
-	lewo2=valueFromADC[6];
-	lewo3=valueFromADC[7];
+	middle1=valueFromADC[0];
+	middle2=valueFromADC[1];
+	right3=valueFromADC[2];
+	right2=valueFromADC[3];
+	right1=valueFromADC[4];
+	left1=valueFromADC[5];
+	left2=valueFromADC[6];
+	left3=valueFromADC[7];
 
 
-		if(lewo3>1000)
+		if(left3>1000)
 			{
-			aktualna=aktualna+waga1;
-			ile_czujnikow++;
-			strona=1;
+			currentPosition=currentPosition+left3SensorValue;
+			sensorsCounter++;
+			lastKnownPosition=1;
 			}
-			if(lewo2>1000)
+			if(left2>sensorThreshold)
 			{
-			aktualna=aktualna+waga2;
-			ile_czujnikow++;
+			currentPosition=currentPosition+left2SensorValue;
+			sensorsCounter++;
 			}
-			if(lewo1>1000)
+			if(left1>sensorThreshold)
 			{
-			aktualna=aktualna+waga3;
-			ile_czujnikow++;
+			currentPosition=currentPosition+left1SensorValue;
+			sensorsCounter++;
 			}
-			if(srodek2>1000)
+			if(middle2>sensorThreshold)
 			{
-			aktualna=aktualna+waga4;
-			ile_czujnikow++;
+			currentPosition=currentPosition+middle1SensorValue;
+			sensorsCounter++;
 			}
-			if(srodek1>1000)
+			if(middle1>sensorThreshold)
 			{
-			aktualna=aktualna+waga5;
-			ile_czujnikow++;
+			currentPosition=currentPosition+middle2SensorValue;
+			sensorsCounter++;
 			}
-			if(prawo1>1000)
+			if(right1>sensorThreshold)
 			{
-			aktualna=aktualna+waga6;
-			ile_czujnikow++;
+			currentPosition=currentPosition+right1SensorValue;
+			sensorsCounter++;
 			}
-			if(prawo2>1000)
+			if(right2>sensorThreshold)
 			{
-			aktualna=aktualna+waga7;
-			ile_czujnikow++;
+			currentPosition=currentPosition+right2SensorValue;
+			sensorsCounter++;
 			}
-			if(prawo3>1000)
+			if(right3>sensorThreshold)
 			{
-			aktualna=aktualna+waga8;
-			ile_czujnikow++;
-			strona=2;
+			currentPosition=currentPosition+right3SensorValue;
+			sensorsCounter++;
 			}
 
-//			if((aktualna==0)&&(srodek1<1000)||(srodek2<1000)){
-//				TIM4->CCR1 = 0; // Przekazujemy do silnika prawego now¹ prêdkoœæ
-//				TIM4->CCR2 = 0;
-//			}
 
-			aktualna_pozycja=(float)(aktualna/ile_czujnikow);
-			error=docelowa+aktualna_pozycja;
-			float zmiana_P=Kp*error;
-			float zmiana_D=Kd*(error-ostatnia_wartosc);
-			calka+=error;
-			float zmiana_I=Ki*calka;
+			error=(int)(currentPosition/sensorsCounter);
+			int P_controller=Kp*error;
+			int D_controller=Kd*(error-lastValue);
 
-			zmiana=zmiana_P+zmiana_D+zmiana_I;
-			GPIO_ResetBits(GPIOC,GPIO_Pin_0|GPIO_Pin_2);
-			GPIO_SetBits(GPIOC,GPIO_Pin_1|GPIO_Pin_3);
 
-			ostatnia_wartosc=error;
+			PWM_change=P_controller+D_controller;
 
-			if(zmiana==0)
+
+
+			lastValue=error;
+
+			if(PWM_change>=0)
 			{
-				TIM4->CCR1 = 7500;
-				TIM4->CCR2 = 7500;
+				if(PWM_change>=Tp)
+				{
+					TIM4->CCR1 = Tp;
+					TIM4->CCR2 = 0;
+				}else
+				{
+					TIM4->CCR1 = Tp;
+					TIM4->CCR2 = Tp - PWM_change;
+				}
 			}else {
-				TIM4->CCR1 = Tp - zmiana; // Przekazujemy do silnika prawego now¹ prêdkoœæ
-				TIM4->CCR2 = Tp + zmiana;
+				if(PWM_change<=-Tp)
+				{
+					TIM4->CCR1 = 0;
+					TIM4->CCR2 = Tp;
+				}else
+				{
+					TIM4->CCR1 = Tp + PWM_change;
+					TIM4->CCR2 = Tp;
+				}
 			}
 
 
 
-			ile_czujnikow=0;
-			aktualna=0;
-			aktualna_pozycja=0;
-			error=0;
-			calka=0;
-			strona=0;
+			sensorsCounter=0;
+			currentPosition=0;
+			side=0;
 
 
 
 }
+
+void BluetoothControll()
+{
+	switch(direction){
+		case 0:
+		{
+			GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
+			GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
+
+			if(distance>20&&ultrawaveSensorEnabled)
+			{
+				TIM4->CCR1=X*1999;
+				TIM4->CCR2=X*1999;
+			}else
+			{
+				TIM4->CCR1=0;
+				TIM4->CCR2=0;
+			}
+			break;
+		}
+		case 1:
+		{
+			TIM4->CCR1=X*1999;
+			TIM4->CCR2=X*1999;
+			GPIO_SetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
+			GPIO_ResetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
+
+			break;
+		}
+		case 2:
+		{
+			TIM4->CCR1=Y*1999;
+			TIM4->CCR2=Y*1999;
+			GPIO_SetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_4);
+			GPIO_ResetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_5);
+
+			break;
+		}
+		case 3:
+		{
+			TIM4->CCR1=Y*1999;
+			TIM4->CCR2=Y*1999;
+			GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_5);
+			GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_4);
+
+			break;
+		}
+}
+}
+
 
 int main(void)
 {
@@ -280,63 +351,91 @@ int main(void)
 	UART_GPIOC_init(9600);
 	PWM_Engine_init();
 	Engine_Controll_Pins_init();
-	//Engine_Off_Timer_init();
-
 
 	DMA_initP2M();
 	ADC_ScanMode_init();
 	ADC_SoftwareStartConv(ADC1);
-	
-	//wlaczenie czujnikow IR
+
+	//IR Sensors
 	GPIO_SetBits(GPIOB,GPIO_Pin_2);
 
-	//wlaczeni silnikow
-	GPIO_SetBits(GPIOC,GPIO_Pin_4);
+	//DistanceSensor
+	InputCaptureDistanceSensor();
+	TIM4->CCR3=9;
 
-	for(;;)
+	//STNDBY ENGINE PIN
+	//GPIO_SetBits(GPIOE,GPIO_Pin_6);
+
+	//tymczasowo todo
+	GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
+	GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
+	GPIO_SetBits(GPIOE,GPIO_Pin_6);
+
+
+	while(1)
 	{
 
-		LineFollow();
-		PWM_Lewy=TIM4->CCR2;
-		PWM_Prawy=TIM4->CCR1;
+		switch(ActiveMode)
+		{
+		case 0:
+		{
+			GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
+			GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
+			if(distance>20)
+			{
+				FollowLine();
+			}
+			else {
+				TIM4->CCR1=0;
+				TIM4->CCR2=0;
+			}
+			break;
+		}
+		case 1:
+		{
+			BluetoothControll();
+			break;
+		}
+		default:
+		{
+			break;
+		}
+		}
+
+
+		//debug
+		PWM_Left=TIM4->CCR2;
+		PWM_Right=TIM4->CCR1;
 
 
 	}
 
+
 }
 
-
-/*uzywane piny
- * pc0-1 sterowanie lewym silnikiem
- * pc2-3 sterowanie prawym silnikiem
- * pc4 	 wylaczenie/wlaczenie silnikow
+/*
+ *
+ *pe2-3	Engine1 controll
+ *pe4-5	Engine2 controll
+ *pe6	turn on/off engines
  *
  * pc10 UART/bluetooth
  * pc11 UART/bluetooth
  *
  * TIM4
- * czestotliwosc 100hz
- * pd12	 PWM lewy silnik
- * pd13  PWM prawy silnik
+ *100hz
+ * pd12	 PWM engine1
+ * pd13  PWM engine2
  *
- * TIM3<zabezpieczenie przed utrata lacznosci>
- * Jest zerowany przy odebraniu znaku przez UART,
- * gdy nie otrzyma nic przez sekunde wylacza silniki
- *
+ * pc7 - inputCapture -ultrawave sensor echo
+ * pd14, TIM4->CCR3, ultrawave sensor trigger
  *
  * PINY ADC
- * pb2   wlaczenie czujnikow
- * pb0-1 glowne czujniki IR
- * pa0-6 boczne czujniki IR
+ * pb2   turn on IR sensors
+ * pb0-1 main sensors middle1 & middle2
+ * pa0-5 left & right sensors
  *
  * todo
- * czujnik odleglosci
- * todo PWM na inne piny
- *
- *
- * todo
- * calkiiii
- * regulacja
  * pamiec
  * dokumentacja
  */

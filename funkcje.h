@@ -24,7 +24,7 @@ void ADC_ScanMode_init(void);
 void PWM_Engine_init(void);
 void Engine_Controll_init(void);
 void Engine_Controller(char direction);
-void Engine_Off_Timer();
+void InputCaptureDistanceSensor();
 
 //komunikacja bluetooth
 void UART_GPIOC_init(uint32_t baudRate);

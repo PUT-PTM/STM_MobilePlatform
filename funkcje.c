@@ -1,36 +1,5 @@
 #include "funkcje.h"
 
-void ButtonInterrupt()
-{
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
-
-	NVIC_InitTypeDef NVIC_InitStructure;
-	// numer przerwania
-	NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
-	// priorytet g³ówny
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
-	// subpriorytet
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
-	// uruchom dany kana³
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-	// zapisz wype³nion¹ strukturê do rejestrów
-	NVIC_Init(&NVIC_InitStructure);
-
-	EXTI_InitTypeDef EXTI_InitStructure;
-	// wybór numeru aktualnie konfigurowanej linii przerwañ
-	EXTI_InitStructure.EXTI_Line = EXTI_Line0;
-	// wybór trybu - przerwanie b¹dŸ zdarzenie
-	EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-	// wybór zbocza, na które zareaguje przerwanie
-	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
-	// uruchom dan¹ liniê przerwañ
-	EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-	// zapisz strukturê konfiguracyjn¹ przerwañ zewnêtrznych do rejestrów
-	EXTI_Init(&EXTI_InitStructure);
-
-	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA, EXTI_PinSource0);
-}
-
 
 void DMA_initP2M(void)
 {
@@ -171,6 +140,7 @@ void PWM_Engine_init(void)
 		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
 		TIM_TimeBaseInitTypeDef timer;
 
+		//10-1 ==> 0,01ms
 		timer.TIM_Period = 10000-1;
 		timer.TIM_Prescaler = 84-1;
 		timer.TIM_ClockDivision = TIM_CKD_DIV1;
@@ -179,9 +149,7 @@ void PWM_Engine_init(void)
 
 		TIM_Cmd(TIM4, ENABLE);
 
-		//pamietac o wlaczeniu GPIOD
 		TIM_OCInitTypeDef PWM;
-			/* PWM1 Mode configuration: */
 		PWM.TIM_OCMode = TIM_OCMode_PWM1;
 		PWM.TIM_OutputState = TIM_OutputState_Enable;
 		PWM.TIM_Pulse = 0;
@@ -203,30 +171,32 @@ void PWM_Engine_init(void)
 		GPIO_PinAFConfig(GPIOD, GPIO_PinSource13, GPIO_AF_TIM4);
 		GPIO_PinAFConfig(GPIOD, GPIO_PinSource14, GPIO_AF_TIM4);
 		GPIO_PinAFConfig(GPIOD, GPIO_PinSource15, GPIO_AF_TIM4);
+
+				TIM_Cmd(TIM4, ENABLE);
+
 }
 
 void Engine_Controll_Pins_init(void)
 {
 	//sterowanie kierunkiem jazdy, pin4- wlaczenie/wylaczenie silnikow
 
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
+
 	GPIO_InitTypeDef  GPIO_InitStructure;
-	/* Configure PD12, PD13, PD14 and PD15 in output pushpull mode */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1| GPIO_Pin_2| GPIO_Pin_3| GPIO_Pin_4;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3| GPIO_Pin_4| GPIO_Pin_5| GPIO_Pin_6;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
 	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_Init(GPIOC, &GPIO_InitStructure);
+	GPIO_Init(GPIOE, &GPIO_InitStructure);
 }
 
 void UART_GPIOC_init(uint32_t baudRate)
 {
-	// wlaczenie taktowania wybranego portu
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
-	// wlaczenie taktowania wybranego uk³adu USART
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
 
-	// konfiguracja linii Rx i Tx
+	//Rx & Tx
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10 | GPIO_Pin_11;//Tx Rx
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
@@ -234,80 +204,37 @@ void UART_GPIOC_init(uint32_t baudRate)
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOC, &GPIO_InitStructure);
-	// ustawienie funkcji alternatywnej dla pinów (USART)
+
 	GPIO_PinAFConfig(GPIOC, GPIO_PinSource10, GPIO_AF_USART3);
 	GPIO_PinAFConfig(GPIOC, GPIO_PinSource11, GPIO_AF_USART3);
 
 
 	USART_InitTypeDef USART_InitStructure;
-	// predkosc transmisji (mozliwe standardowe opcje: 9600, 19200, 38400, 57600, 115200, ...)
 	USART_InitStructure.USART_BaudRate = baudRate;
-
-	// d³ugoœæ s³owa (USART_WordLength_8b lub USART_WordLength_9b)
 	USART_InitStructure.USART_WordLength = USART_WordLength_8b;
-	// liczba bitów stopu (USART_StopBits_1, USART_StopBits_0_5, USART_StopBits_2, USART_StopBits_1_5)
 	USART_InitStructure.USART_StopBits = USART_StopBits_1;
-	// sprawdzanie parzystoœci (USART_Parity_No, USART_Parity_Even, USART_Parity_Odd)
 	USART_InitStructure.USART_Parity = USART_Parity_No;
-	// sprzêtowa kontrola przep³ywu (USART_HardwareFlowControl_None, USART_HardwareFlowControl_RTS, USART_HardwareFlowControl_CTS, USART_HardwareFlowControl_RTS_CTS)
 	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-	// tryb nadawania/odbierania (USART_Mode_Rx, USART_Mode_Rx )
 	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
 
-	// konfiguracja
+
 	USART_Init(USART3, &USART_InitStructure);
 
-	// wlaczenie ukladu USART
+
 	USART_Cmd(USART3, ENABLE);
 
-	//struktura do konfiguracji kontrolera NVIC
 	NVIC_InitTypeDef NVIC_InitStructure;
-	// wlaczenie przerwania zwi¹zanego z odebraniem danych (pozostale zrodla przerwan zdefiniowane sa w pliku stm32f4xx_usart.h)
 	USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
 	NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-	// konfiguracja kontrolera przerwan
+
 	NVIC_Init(&NVIC_InitStructure);
-	// wlaczenie przerwan od ukladu USART
+
 	NVIC_EnableIRQ(USART3_IRQn);
 
 
-
-}
-
-void Engine_Off_Timer_init()
-{
-	NVIC_InitTypeDef NVIC_InitStructure;
-
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
-
-
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
-	TIM_TimeBaseInitTypeDef timer;
-
-	timer.TIM_Period = 10000-1;
-	timer.TIM_Prescaler = 8400-1;
-	timer.TIM_ClockDivision = TIM_CKD_DIV1;
-	timer.TIM_CounterMode = TIM_CounterMode_Up;
-	TIM_TimeBaseInit(TIM3, &timer);
-
-				NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
-				// priorytet g³ówny
-				NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
-				// subpriorytet
-				NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
-				// uruchom dany kana³
-				NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-				// zapisz wype³nion¹ strukturê do rejestrów
-				NVIC_Init(&NVIC_InitStructure);
-
-				TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
-				// zezwolenie na przerwania od przepe³nienia dla timera 3
-				TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
-
-				TIM_Cmd(TIM3, ENABLE);
 
 }
 
@@ -352,6 +279,56 @@ void Engine_Controller_Bluetooth(char direction,char X, char Y)
 
 		}break;
 		}
+}
+
+void InputCaptureDistanceSensor()
+{
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
+		GPIO_InitTypeDef port;
+
+		port.GPIO_Pin = GPIO_Pin_7;
+		port.GPIO_Mode = GPIO_Mode_AF;
+		port.GPIO_OType = GPIO_OType_PP;
+		port.GPIO_Speed = GPIO_Speed_100MHz;
+		port.GPIO_PuPd = GPIO_PuPd_NOPULL;
+		GPIO_Init(GPIOC, &port);
+
+		GPIO_PinAFConfig(GPIOC, GPIO_PinSource7, GPIO_AF_TIM3);
+
+		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+		TIM_TimeBaseInitTypeDef timer;
+
+		timer.TIM_Period =10000-1;
+		timer.TIM_Prescaler = 84-1;
+		timer.TIM_ClockDivision = TIM_CKD_DIV1;
+		timer.TIM_CounterMode = TIM_CounterMode_Up;
+		TIM_TimeBaseInit(TIM3, &timer);
+
+
+		TIM_ICInitTypeDef inputCapture;
+		inputCapture.TIM_Channel=TIM_Channel_2;
+		inputCapture.TIM_ICPolarity=TIM_ICPolarity_BothEdge;
+		inputCapture.TIM_ICPrescaler=TIM_ICPSC_DIV1;
+		inputCapture.TIM_ICSelection=TIM_ICSelection_DirectTI;
+		inputCapture.TIM_ICFilter=0x0FF;
+
+		TIM_ICInit(TIM3,&inputCapture);
+
+
+		NVIC_InitTypeDef NVIC_InitStructure;
+
+		NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+
+				NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
+				NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x01;
+				NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x01;
+				NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+				NVIC_Init(&NVIC_InitStructure);
+
+				TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
+				TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
+
+				TIM_Cmd(TIM3, ENABLE);
 
 
 }
