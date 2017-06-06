@@ -23,9 +23,6 @@ char X=0;//forward/backward value from bluetooth
 char Y=0;//left/right value from bluetooth
 char direction=0;//0-forward, 1-backward, 2-left, 3-right
 
-//debug todo
-int PWM_Right;
-int PWM_Left;
 
 uint16_t timer2cnt=0;
 
@@ -465,7 +462,6 @@ int main(void)
 	//speaker
 	SpeakerInit();
 
-	//tymczasowo todo
 	GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
 	GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
 	GPIO_SetBits(GPIOE,GPIO_Pin_6);
@@ -497,10 +493,6 @@ int main(void)
 		}
 
 
-		//debug
-		PWM_Left=TIM4->CCR2;
-		PWM_Right=TIM4->CCR1;
-
 
 	}
 
@@ -524,14 +516,20 @@ int main(void)
  * pc7 - inputCapture -ultrawave sensor echo
  * pd14, TIM4->CCR3, ultrawave sensor trigger
  *
- * PINY ADC
+ * ADC pins
  * pb2   turn on IR sensors
  * pb0-1 main sensors middle1 & middle2
  * pa0-5 left & right sensors
  *
- * todo
- * pamiec
- * dokumentacja
+ *Bluetooth commands
+ *	'x[number]' move forward/backward it uses -5 to 5 values
+ *	'y[number]' move left/right it uses -5 to 5 values
+ *	'o' on/off engines
+ *	'L' linefollower mode
+ *	'B' manual mode
+ *	'D' distance sensor - not used
+ *	'S' play 'Czesc tu slawomir'
+ *	'T' play 'pyrpyrpyr'
  */
 
 
