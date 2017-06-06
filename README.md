@@ -21,8 +21,11 @@ RoboRemoFree on Android
 Upload program to STM32F4, connect all needed pins that are given in main.c file. Download RoboRemoFree on Android system and configure it
 by using commands from main.c file
 
-# How to compile - CoIDE to compile code and send it to flash memory.
-Future improvements - Manual control can be improved by changing bluetooth commands. Ultrawave sensor configuration.
+# How to compile 
+CoIDE to compile code and send it to flash memory.
+
+# Future improvements 
+Manual control can be improved by changing bluetooth commands. Ultrawave sensor configuration.
 
 # License
 Distributed under MIT license.
