@@ -4,60 +4,57 @@
 void DMA_initP2M(void)
 {
    	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2, ENABLE);
-   	DMA_InitTypeDef strukturaDoInicjalizacjiDMA;
-   	// wybór kana³u DMA
-   	strukturaDoInicjalizacjiDMA.DMA_Channel = DMA_Channel_0;
-   	// ustalenie rodzaju transferu (memory2memory / peripheral2memory / memory2peripheral)
-   	strukturaDoInicjalizacjiDMA.DMA_DIR = DMA_DIR_PeripheralToMemory;
-   	// tryb pracy - pojedynczy transfer b¹dŸ powtarzany
-   	strukturaDoInicjalizacjiDMA.DMA_Mode = DMA_Mode_Circular;
-   	// ustalenie priorytetu danego kana³u DMA
-   	strukturaDoInicjalizacjiDMA.DMA_Priority = DMA_Priority_High;
-   	// liczba danych do przes³ania
-   	strukturaDoInicjalizacjiDMA.DMA_BufferSize = ARRAYSIZE;
-   	// adres Ÿród³owy
-   	strukturaDoInicjalizacjiDMA.DMA_PeripheralBaseAddr = (uint32_t)(ADC_1_ADDRESS_BASE+ADC_DR_ADDRESS_OFFSET);
-   	// adres docelowy
-   	strukturaDoInicjalizacjiDMA.DMA_Memory0BaseAddr = (uint32_t)&valueFromADC;
-   	// okreslenie, czy adresy maj¹ byæ inkrementowane po ka¿dej przes³anej paczce danych
-   	strukturaDoInicjalizacjiDMA.DMA_MemoryInc = DMA_MemoryInc_Enable;
-   	strukturaDoInicjalizacjiDMA.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-   	// ustalenie rozmiaru przesy³anych danych
-   	strukturaDoInicjalizacjiDMA.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-   	strukturaDoInicjalizacjiDMA.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
-   	// ustalenie trybu pracy - jednorazwe przes³anie danych
-   	strukturaDoInicjalizacjiDMA.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
-   	strukturaDoInicjalizacjiDMA.DMA_MemoryBurst = DMA_MemoryBurst_Single;
-   	// wy³¹czenie kolejki FIFO (nie u¿ywana w tym przykadzie)
-   	strukturaDoInicjalizacjiDMA.DMA_FIFOMode = DMA_FIFOMode_Disable;
-   	// wype³nianie wszystkich pól struktury jest niezbêdne w celu poprawnego dzia³ania, wpisanie jednej z dozwolonych wartosci
-   	strukturaDoInicjalizacjiDMA.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
-   	// zapisanie wype³nionej struktury do rejestrów wybranego po³¹czenia DMA
-   	DMA_Init(DMA2_Stream4, &strukturaDoInicjalizacjiDMA);
-   	// uruchomienie odpowiedniego po³¹czenia DMA
+   	DMA_InitTypeDef DMAinitStruct;
+   	// DMA Channel
+   	DMAinitStruct.DMA_Channel = DMA_Channel_0;
+   	// (memory2memory / peripheral2memory / memory2peripheral)
+   	DMAinitStruct.DMA_DIR = DMA_DIR_PeripheralToMemory;
+   	// DMA MODE
+   	DMAinitStruct.DMA_Mode = DMA_Mode_Circular;
+   	// Priority
+   	DMAinitStruct.DMA_Priority = DMA_Priority_High;
+   	// Data to send
+   	DMAinitStruct.DMA_BufferSize = ARRAYSIZE;
+   	// Source address
+   	DMAinitStruct.DMA_PeripheralBaseAddr = (uint32_t)(ADC_1_ADDRESS_BASE+ADC_DR_ADDRESS_OFFSET);
+   	// Destination address
+   	DMAinitStruct.DMA_Memory0BaseAddr = (uint32_t)&valueFromADC;
+
+   	DMAinitStruct.DMA_MemoryInc = DMA_MemoryInc_Enable;
+   	DMAinitStruct.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+   	// size of data
+   	DMAinitStruct.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+   	DMAinitStruct.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+
+   	DMAinitStruct.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+   	DMAinitStruct.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+
+   	DMAinitStruct.DMA_FIFOMode = DMA_FIFOMode_Disable;
+   	DMAinitStruct.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
+
+   	DMA_Init(DMA2_Stream4, &DMAinitStruct);
    	DMA_Cmd(DMA2_Stream4, ENABLE);
 }
 
 
 void ADC_ScanMode_init(void)
 {
-   	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA , ENABLE); // wejscie ADC
-   	//inicjalizacja wejœcia ADC
+   	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA , ENABLE);
+
    	GPIO_InitTypeDef GPIO_InitStructure;
    	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0|GPIO_Pin_1|GPIO_Pin_2|GPIO_Pin_3
-   			|GPIO_Pin_4|GPIO_Pin_5;
+   			|GPIO_Pin_7|GPIO_Pin_5;
    	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
    	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
    	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-   	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB , ENABLE); // wejscie ADC
-   	//inicjalizacja wejœcia ADC
+   	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB , ENABLE);
    	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0|GPIO_Pin_1;
    	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
    	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
    	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
-   	//pin do wlaczenia czujnikow stanem wysokim
+   	//Pin is used to enable IR sensors
    	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
    	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
    	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
@@ -66,64 +63,43 @@ void ADC_ScanMode_init(void)
 
 
    	ADC_CommonInitTypeDef ADC_CommonInitStructure;
-   	// niezale¿ny tryb pracy przetworników
    	ADC_CommonInitStructure.ADC_Mode = ADC_Mode_Independent;
-   	// zegar g³ówny podzielony przez 2
    	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;
-   	// opcja istotna tylko dla tryby multi ADC
    	ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_2;
-   	// czas przerwy pomiêdzy kolejnymi konwersjami
    	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;
    	ADC_CommonInit(&ADC_CommonInitStructure);
 
-   	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE); //ADC
+   	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
    	ADC_InitTypeDef ADC_InitStructure;
-   	//ustawienie rozdzielczoœci przetwornika na maksymaln¹ (12 bitów)
    	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
-   	//w trybie skanowania automatycznie wykonywana jest konwersja na wielu //wejœciach/kana³ach)
    	ADC_InitStructure.ADC_ScanConvMode = ENABLE;
-   	//w³¹czenie ci¹g³ego trybu pracy
    	ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;
-   	//wy³¹czenie zewnêtrznego wyzwalania
-   	//konwersja mo¿e byæ wyzwalana timerem, stanem wejœcia itd. (szczegó³y w //dokumentacji)
    	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_T1_CC1;
    	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
-   	//wartoœæ binarna wyniku bêdzie podawana z wyrównaniem do prawej
-   	//funkcja do odczytu stanu przetwornika ADC zwraca wartoœæ 16-bitow¹
-   	//dla przyk³adu, wartoœæ 0xFF wyrównana w prawo to 0x00FF, w lewo 0x0FF0
    	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
-   	//liczba konwersji równa 8, bo 8 kana³ow
    	ADC_InitStructure.ADC_NbrOfConversion = 8;
-   	// zapisz wype³nion¹ strukturê do rejestrów przetwornika numer 1
    	ADC_Init(ADC1, &ADC_InitStructure);
-   	// konfiguracja czasu próbkowania sygna³u
 
 
-   	//podzial na porty A oraz B, poniewaz pin PA6 podawal zle wartosci
-
-   	//Glowne czujniki linii
+   	//Main IR Sensors
    	ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 1, ADC_SampleTime_84Cycles);
    	ADC_RegularChannelConfig(ADC1, ADC_Channel_9, 2, ADC_SampleTime_84Cycles);
 
-   	//pomocnicze czujniki
+   	//Additional IR Sensors
    	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 3, ADC_SampleTime_84Cycles);
    	ADC_RegularChannelConfig(ADC1, ADC_Channel_1, 4, ADC_SampleTime_84Cycles);
    	ADC_RegularChannelConfig(ADC1, ADC_Channel_2, 5, ADC_SampleTime_84Cycles);
    	ADC_RegularChannelConfig(ADC1, ADC_Channel_3, 6, ADC_SampleTime_84Cycles);
-   	ADC_RegularChannelConfig(ADC1, ADC_Channel_4, 7, ADC_SampleTime_84Cycles);
+   	ADC_RegularChannelConfig(ADC1, ADC_Channel_7, 7, ADC_SampleTime_84Cycles);
    	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 8, ADC_SampleTime_84Cycles);
 
 
-   	// w³¹czenie wyzwalania DMA po ka¿dym zakoñczeniu konwersji
    	ADC_DMARequestAfterLastTransferCmd(ADC1, ENABLE);
 
-   	// w³¹czenie DMA dla ADC
    	ADC_DMACmd(ADC1, ENABLE);
-   	// uruchomienie modu³y ADC
    	ADC_Cmd(ADC1, ENABLE);
 }
 
-//todo zmienic piny
 void PWM_Engine_init(void)
 {
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
@@ -176,9 +152,8 @@ void PWM_Engine_init(void)
 
 }
 
-void Engine_Controll_Pins_init(void)
+void Engine_Control_Pins_init(void)
 {
-	//sterowanie kierunkiem jazdy, pin4- wlaczenie/wylaczenie silnikow
 
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
 
@@ -239,48 +214,6 @@ void UART_GPIOC_init(uint32_t baudRate)
 }
 
 
-void Engine_Controller_Bluetooth(char direction,char X, char Y)
-{
-	switch(direction)
-	{
-		case 0:
-		{
-			GPIO_SetBits(GPIOC,GPIO_Pin_0|GPIO_Pin_2);
-			GPIO_ResetBits(GPIOC,GPIO_Pin_1|GPIO_Pin_3);
-			TIM4->CCR1=X*(2000-1);
-			TIM4->CCR2=X*(2000-1);
-
-		}break;
-		case 1:
-		{
-			GPIO_SetBits(GPIOC,GPIO_Pin_1|GPIO_Pin_3);
-			GPIO_ResetBits(GPIOC,GPIO_Pin_0|GPIO_Pin_2);
-			TIM4->CCR1=X*(2000-1);
-			TIM4->CCR2=X*(2000-1);
-
-		}break;
-		case 2:
-		{
-			GPIO_SetBits(GPIOC,GPIO_Pin_1|GPIO_Pin_2);
-			GPIO_ResetBits(GPIOC,GPIO_Pin_0|GPIO_Pin_3);
-			TIM4->CCR1=Y*(2000-1);
-			TIM4->CCR2=Y*(2000-1);
-
-		}break;
-		case 3:
-		{
-			GPIO_SetBits(GPIOC,GPIO_Pin_0|GPIO_Pin_3);
-			GPIO_ResetBits(GPIOC,GPIO_Pin_1|GPIO_Pin_2);
-			TIM4->CCR1=Y*(2000-1);
-			TIM4->CCR2=Y*(2000-1);
-		}break;
-		default:
-		{
-
-		}break;
-		}
-}
-
 void InputCaptureDistanceSensor()
 {
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
@@ -310,7 +243,7 @@ void InputCaptureDistanceSensor()
 		inputCapture.TIM_ICPolarity=TIM_ICPolarity_BothEdge;
 		inputCapture.TIM_ICPrescaler=TIM_ICPSC_DIV1;
 		inputCapture.TIM_ICSelection=TIM_ICSelection_DirectTI;
-		inputCapture.TIM_ICFilter=0x0FF;
+		inputCapture.TIM_ICFilter=0;
 
 		TIM_ICInit(TIM3,&inputCapture);
 
@@ -331,6 +264,53 @@ void InputCaptureDistanceSensor()
 				TIM_Cmd(TIM3, ENABLE);
 
 
+}
+
+void SpeakerInit(){
+	
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+	GPIO_InitTypeDef port;
+	
+	port.GPIO_Pin = GPIO_Pin_4;
+	port.GPIO_Mode = GPIO_Mode_AN;
+	port.GPIO_OType = GPIO_OType_PP;
+	port.GPIO_Speed = GPIO_Speed_100MHz;
+	port.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOA, &port);
+	
+	
+	DAC_InitTypeDef DAC_InitStructure;
+	DAC_InitStructure.DAC_Trigger = DAC_Trigger_None;
+	DAC_InitStructure.DAC_WaveGeneration = DAC_WaveGeneration_None;
+	DAC_InitStructure.DAC_LFSRUnmask_TriangleAmplitude = DAC_LFSRUnmask_Bit0;
+	DAC_InitStructure.DAC_OutputBuffer = DAC_OutputBuffer_Enable;
+	DAC_Init(DAC_Channel_1, &DAC_InitStructure);
+
+	DAC_Cmd(DAC_Channel_1, ENABLE);
+	DAC_SetChannel1Data(DAC_Align_12b_R, 0x0000);
+		
+	
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+	TIM_TimeBaseStructure.TIM_Period = 250-1;
+	TIM_TimeBaseStructure.TIM_Prescaler = 10-1;
+	TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
+	TIM_TimeBaseStructure.TIM_CounterMode =  TIM_CounterMode_Up;
+	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
+	
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+
+		NVIC_InitTypeDef NVIC_InitStructure;
+		NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
+		NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+		NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
+		NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+		NVIC_Init(&NVIC_InitStructure);
+
+		TIM_ClearITPendingBit(TIM2,TIM_IT_Update);
+		TIM_ITConfig(TIM2,TIM_IT_Update,ENABLE);
+	
 }
 
 

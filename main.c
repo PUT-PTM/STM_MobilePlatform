@@ -8,9 +8,14 @@
 #include "stm32f4xx_syscfg.h"
 #include "funkcje.h"
 #include "stm32f4xx_usart.h"
+#include "stm32f4xx_dac.h"
 
 
-char ActiveMode =0;//0-LineFollower, 1-Manual
+
+extern const u8 rawData[54174];//slawomir
+extern const u8 rawData2[96078];//pyrpyr
+
+char ActiveMode = 1;//0-LineFollower, 1-Manual
 char cmd[5];//bluetooth/uart commands
 int index=0;//
 
@@ -18,9 +23,11 @@ char X=0;//forward/backward value from bluetooth
 char Y=0;//left/right value from bluetooth
 char direction=0;//0-forward, 1-backward, 2-left, 3-right
 
-//debug
+//debug todo
 int PWM_Right;
 int PWM_Left;
+
+uint16_t timer2cnt=0;
 
 // more than 1000 means black line
 uint16_t sensorThreshold=1000;
@@ -38,7 +45,7 @@ uint16_t left3=0;
 //values for PD alghoritm
 int Kp=100;
 int Kd=800;
-int Tp=7000;
+int Tp=8000;
 int currentPosition=0;
 int sensorsCounter=0;
 int error=0;
@@ -49,14 +56,14 @@ int lastValue=0;
 int lastKnownPosition=0;
 
 //values of each sensor
-int16_t left3SensorValue=-70;
-int16_t left2SensorValue=-50;
-int16_t left1SensorValue=-30;
-int16_t middle2SensorValue=-10;
-int16_t middle1SensorValue=10;
-int16_t right1SensorValue=30;
-int16_t right2SensorValue=50;
-int16_t right3SensorValue=70;
+int16_t left3SensorValue=-45;
+int16_t left2SensorValue=-30;
+int16_t left1SensorValue=-15;
+int16_t middle2SensorValue=0;
+int16_t middle1SensorValue=0;
+int16_t right1SensorValue=15;
+int16_t right2SensorValue=30;
+int16_t right3SensorValue=45;
 
 
 //ultrawave sensor values
@@ -66,7 +73,32 @@ uint16_t inputCaptureValue2=0;
 uint16_t ultrawavesensorHightime;
 uint16_t distance=0;
 
-//BluetoothControll
+//speaker values
+u8 dac;
+int array_index;
+int volume=1;
+char soundEnabled=0;
+char sound=1;
+
+void moveForward(){
+	GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
+	GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
+}
+void moveBackward(){
+	GPIO_SetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
+	GPIO_ResetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
+}
+void moveLeft(){
+	GPIO_SetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_4);
+	GPIO_ResetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_5);
+}
+void moveRight(){
+	GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_5);
+	GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_4);
+}
+
+
+//BluetoothControl
 void USART3_IRQHandler(void)
 {
 	if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)
@@ -157,7 +189,34 @@ void USART3_IRQHandler(void)
 			index=0;
 			break;
 		}
+		case 'S':
+		{
+			TIM2->CNT=0;
+			TIM_Cmd(TIM2,ENABLE);
+			sound=1;
+			array_index=0;
+			index=0;
+			break;
+		}
+		case 'T':
+		{
+			if(soundEnabled==0){
+				TIM_Cmd(TIM2,ENABLE);
+				soundEnabled=1;
+				TIM2->CNT=0;
+				sound=0;
+				array_index=0;
+			}
+			else {
+				soundEnabled=0;
+				TIM_Cmd(TIM2,DISABLE);
+				TIM2->CNT=0;
+				array_index=0;
 
+			}
+			index=0;
+			break;
+		}
 		default:
 		{
 			index=0;
@@ -193,6 +252,48 @@ void TIM3_IRQHandler(void)
 
 }
 
+void TIM2_IRQHandler(void)
+{
+	if(TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+	{
+
+		switch(sound)
+		{
+		case 0:
+		{
+			dac=rawData2[array_index]*1.3;
+			DAC_SetChannel1Data(DAC_Align_12b_R,dac);
+			array_index++;
+			if(array_index==96078)
+			{
+				array_index=0;
+				TIM2->CNT=0;
+				TIM_Cmd(TIM2,DISABLE);
+			}
+			break;
+		}case 1:
+		{
+			dac=rawData[array_index]*1.3;
+			DAC_SetChannel1Data(DAC_Align_12b_R,dac);
+			array_index++;
+			if(array_index==54068)
+			{
+				array_index=0;
+				TIM2->CNT=0;
+				TIM_Cmd(TIM2,DISABLE);
+			}
+			break;
+		}
+		default:
+		{
+			break;
+		}
+		}
+
+
+		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+	}
+}
 
 
 void FollowLine()
@@ -211,12 +312,13 @@ void FollowLine()
 			{
 			currentPosition=currentPosition+left3SensorValue;
 			sensorsCounter++;
-			lastKnownPosition=1;
+			lastKnownPosition=0;
 			}
 			if(left2>sensorThreshold)
 			{
 			currentPosition=currentPosition+left2SensorValue;
 			sensorsCounter++;
+			lastKnownPosition=0;
 			}
 			if(left1>sensorThreshold)
 			{
@@ -242,11 +344,13 @@ void FollowLine()
 			{
 			currentPosition=currentPosition+right2SensorValue;
 			sensorsCounter++;
+			lastKnownPosition=1;
 			}
 			if(right3>sensorThreshold)
 			{
 			currentPosition=currentPosition+right3SensorValue;
 			sensorsCounter++;
+			lastKnownPosition=1;
 			}
 
 
@@ -256,10 +360,20 @@ void FollowLine()
 
 
 			PWM_change=P_controller+D_controller;
-
-
-
 			lastValue=error;
+
+			if(sensorsCounter==0){
+				if(lastKnownPosition==0)
+				{
+				TIM4->CCR1 = 0;
+				TIM4->CCR2 = Tp;
+				}else
+				{
+					TIM4->CCR1 = Tp;
+					TIM4->CCR2 = 0;
+				}
+			}else{
+
 
 			if(PWM_change>=0)
 			{
@@ -284,64 +398,49 @@ void FollowLine()
 				}
 			}
 
-
+			}
 
 			sensorsCounter=0;
 			currentPosition=0;
-			side=0;
 
 
 
 }
 
-void BluetoothControll()
+void BluetoothControl()
 {
 	switch(direction){
 		case 0:
 		{
-			GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
-			GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
-
-			if(distance>20&&ultrawaveSensorEnabled)
-			{
-				TIM4->CCR1=X*1999;
-				TIM4->CCR2=X*1999;
-			}else
-			{
-				TIM4->CCR1=0;
-				TIM4->CCR2=0;
-			}
+			moveForward();
+			TIM4->CCR1=X*1999;
+			TIM4->CCR2=X*1999;
 			break;
 		}
 		case 1:
 		{
+			moveBackward();
 			TIM4->CCR1=X*1999;
 			TIM4->CCR2=X*1999;
-			GPIO_SetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
-			GPIO_ResetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
-
 			break;
 		}
 		case 2:
 		{
+			moveLeft();
 			TIM4->CCR1=Y*1999;
 			TIM4->CCR2=Y*1999;
-			GPIO_SetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_4);
-			GPIO_ResetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_5);
-
 			break;
 		}
 		case 3:
 		{
+			moveRight();
 			TIM4->CCR1=Y*1999;
 			TIM4->CCR2=Y*1999;
-			GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_5);
-			GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_4);
-
 			break;
 		}
 }
 }
+
 
 
 int main(void)
@@ -350,7 +449,7 @@ int main(void)
 
 	UART_GPIOC_init(9600);
 	PWM_Engine_init();
-	Engine_Controll_Pins_init();
+	Engine_Control_Pins_init();
 
 	DMA_initP2M();
 	ADC_ScanMode_init();
@@ -363,8 +462,8 @@ int main(void)
 	InputCaptureDistanceSensor();
 	TIM4->CCR3=9;
 
-	//STNDBY ENGINE PIN
-	//GPIO_SetBits(GPIOE,GPIO_Pin_6);
+	//speaker
+	SpeakerInit();
 
 	//tymczasowo todo
 	GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
@@ -374,6 +473,7 @@ int main(void)
 
 	while(1)
 	{
+		timer2cnt=TIM2->CNT;
 
 		switch(ActiveMode)
 		{
@@ -381,19 +481,13 @@ int main(void)
 		{
 			GPIO_SetBits(GPIOE,GPIO_Pin_2|GPIO_Pin_4);
 			GPIO_ResetBits(GPIOE,GPIO_Pin_3|GPIO_Pin_5);
-			if(distance>20)
-			{
-				FollowLine();
-			}
-			else {
-				TIM4->CCR1=0;
-				TIM4->CCR2=0;
-			}
+			FollowLine();
+
 			break;
 		}
 		case 1:
 		{
-			BluetoothControll();
+			BluetoothControl();
 			break;
 		}
 		default:
@@ -415,8 +509,8 @@ int main(void)
 
 /*
  *
- *pe2-3	Engine1 controll
- *pe4-5	Engine2 controll
+ *pe2-3	Engine1 control
+ *pe4-5	Engine2 control
  *pe6	turn on/off engines
  *
  * pc10 UART/bluetooth
